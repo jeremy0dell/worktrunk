@@ -760,10 +760,9 @@ fn render_project_config(out: &mut String) -> anyhow::Result<()> {
     // Project identifier — used as the key for [projects."..."] sections in
     // user config. Surface it here so users can find the right key without
     // hand-deriving it from the remote URL.
-    if let Ok(project_id) = repo.project_identifier() {
-        let line = info_message(cformat!("Identifier: <bold>{project_id}</>"));
-        writeln!(out, "{line}")?;
-    }
+    let project_id = repo.project_identifier()?;
+    let identifier_line = info_message(cformat!("Identifier: <bold>{project_id}</>"));
+    writeln!(out, "{identifier_line}")?;
 
     // Check if file exists
     if !config_path.exists() {
