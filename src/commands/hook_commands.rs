@@ -12,7 +12,8 @@ use color_print::cformat;
 use strum::IntoEnumIterator;
 use worktrunk::HookType;
 use worktrunk::config::{
-    ALIAS_ARGS_KEY, Approvals, CommandConfig, ProjectConfig, UserConfig, referenced_vars_for_config,
+    ALIAS_ARGS_KEY, Approvals, CommandConfig, HooksConfig, ProjectConfig, UserConfig,
+    referenced_vars_for_config,
 };
 use worktrunk::git::Repository;
 use worktrunk::path::format_path_for_display;
@@ -420,14 +421,9 @@ pub fn handle_hook_show(
 
     let mut output = String::new();
 
-    // Render user hooks
-    render_user_hooks(
-        &mut output,
-        config,
-        project_id.as_deref(),
-        filter,
-        ctx.as_ref(),
-    )?;
+    // Render user hooks (merge global + per-project so display matches what runs)
+    let user_hooks = config.hooks(project_id.as_deref());
+    render_user_hooks(&mut output, &user_hooks, filter, ctx.as_ref())?;
     output.push('\n');
 
     // Render project hooks
@@ -529,11 +525,11 @@ fn emit_hook_show_json(
     Ok(())
 }
 
-/// Render user hooks section
+/// Render user hooks section. Caller passes a `HooksConfig` already merged
+/// for the current project so display matches what the execution path runs.
 fn render_user_hooks(
     out: &mut String,
-    config: &UserConfig,
-    project_id: Option<&str>,
+    user_hooks: &HooksConfig,
     filter: Option<HookType>,
     ctx: Option<&CommandContext>,
 ) -> anyhow::Result<()> {
@@ -553,9 +549,6 @@ fn render_user_hooks(
         )
     )?;
 
-    // Merge global and per-project user hooks so display matches what
-    // actually runs (the execution path also uses `config.hooks(project_id)`).
-    let user_hooks = config.hooks(project_id);
     let hooks: Vec<_> = HookType::iter()
         .filter_map(|ht| user_hooks.get(ht).map(|cfg| (ht, cfg)))
         .collect();
