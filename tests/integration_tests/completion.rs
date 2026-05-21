@@ -831,6 +831,45 @@ fn test_complete_hook_subcommands(repo: TestRepo) {
     assert!(!subcommands.contains(&"pre-merge"));
 }
 
+/// Hook command name completion resolves the `pre-create`/`post-create`
+/// silent aliases to canonical `pre-start`/`post-start` so completing
+/// `wt hook post-create <TAB>` lists the configured `post-start` names.
+#[rstest]
+fn test_hook_command_completion_resolves_create_alias(repo: TestRepo) {
+    repo.commit("initial");
+    repo.write_project_config(
+        r#"
+[post-start]
+server = "npm run dev"
+watcher = "npm run watch"
+"#,
+    );
+
+    for alias in ["post-create", "pre-create"] {
+        let output = repo
+            .completion_cmd(&["wt", "hook", alias, ""])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "completion failed for alias {alias}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // The post-create alias should produce the post-start configured names.
+    let output = repo
+        .completion_cmd(&["wt", "hook", "post-create", ""])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let values = value_suggestions(&stdout);
+    assert!(
+        values.contains(&"server") && values.contains(&"watcher"),
+        "post-create alias should resolve to post-start hooks, got {values:?}\n{stdout}"
+    );
+}
+
 /// Cross-shell completion contract for hook command names.
 ///
 /// Same contract as branch completions (test_completion_cross_shell_filtering_contract):

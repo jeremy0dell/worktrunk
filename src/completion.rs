@@ -452,6 +452,17 @@ pub(crate) fn inject_hook_subcommands(cmd: Command) -> Command {
             }
             hook = hook.subcommand(build_hook_completion_command(name));
         }
+        // Inject the silent `pre-create`/`post-create` aliases as hidden
+        // subcommands so completion engines walking the Command tree resolve
+        // `wt hook post-create <TAB>` to the same name completer as
+        // `wt hook post-start <TAB>`. Aliases stay hidden so they don't show
+        // up in subcommand listings.
+        for &name in &["pre-create", "post-create"] {
+            if hook.get_subcommands().any(|s| s.get_name() == name) {
+                continue;
+            }
+            hook = hook.subcommand(build_hook_completion_command(name).hide(true));
+        }
         hook
     })
 }

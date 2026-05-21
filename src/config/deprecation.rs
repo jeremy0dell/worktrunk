@@ -4449,4 +4449,82 @@ server = "npm run dev"
         let result = migrate_pre_hook_table_form(content);
         insta::assert_snapshot!(migration_diff(content, &result));
     }
+
+    // --- pre-create/post-create → pre-start/post-start silent rename tests ---
+
+    fn migrate_create_hooks(content: &str) -> String {
+        let Ok(mut doc) = content.parse::<toml_edit::DocumentMut>() else {
+            return content.to_string();
+        };
+        if migrate_create_hooks_doc(&mut doc) {
+            doc.to_string()
+        } else {
+            content.to_string()
+        }
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_top_level() {
+        let content = r#"
+pre-create = "npm install"
+
+[post-create]
+server = "npm run dev"
+"#;
+        let result = migrate_create_hooks(content);
+        assert!(result.contains("pre-start = \"npm install\""), "got: {result}");
+        assert!(result.contains("[post-start]"), "got: {result}");
+        assert!(!result.contains("pre-create"), "got: {result}");
+        assert!(!result.contains("post-create"), "got: {result}");
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_project_level() {
+        let content = r#"
+[projects."my-project"]
+post-create = "npm run dev"
+"#;
+        let result = migrate_create_hooks(content);
+        assert!(result.contains("post-start = \"npm run dev\""), "got: {result}");
+        assert!(!result.contains("post-create"), "got: {result}");
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_skips_when_canonical_exists() {
+        // Both present at top level — the migrator leaves the alias key alone
+        // rather than clobber the canonical value.
+        let content = r#"
+pre-create = "old"
+pre-start = "new"
+"#;
+        let result = migrate_create_hooks(content);
+        assert_eq!(result, content, "must not clobber an existing pre-start");
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_skips_when_canonical_exists_project() {
+        let content = r#"
+[projects."my-project"]
+post-create = "old"
+post-start = "new"
+"#;
+        let result = migrate_create_hooks(content);
+        assert_eq!(result, content, "must not clobber an existing post-start");
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_invalid_toml() {
+        let content = "this is { not valid toml";
+        assert_eq!(migrate_create_hooks(content), content);
+    }
+
+    #[test]
+    fn test_migrate_create_hooks_noop_on_canonical() {
+        let content = r#"
+pre-start = "npm install"
+post-start = "npm run dev"
+"#;
+        let result = migrate_create_hooks(content);
+        assert_eq!(result, content);
+    }
 }
